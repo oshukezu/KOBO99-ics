@@ -10,8 +10,7 @@
 - 開啟 [Google 日曆](https://calendar.google.com/)
 - 點選右上角 齒輪 > 設定
 - 左側 一般 > 新增日曆 > [加入日曆網址](https://oshukezu.github.io/KOBO99Codex/public/kobo99.ics)
-- 輸入 
-- 點選 新增日曆
+
 <img width="920" height="359" alt="image" src="https://github.com/user-attachments/assets/d5e686ba-d9aa-4a0f-ab17-85c720522143" />
 
 ## 免責與技術限制宣告 (Disclaimer & Limitations)
