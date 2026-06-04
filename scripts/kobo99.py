@@ -6,6 +6,8 @@ import hashlib
 import html
 import json
 import re
+import subprocess
+import sys
 import time
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -113,41 +115,30 @@ def fetch_html_direct(url: str, retries: int = 2, delay_seconds: float = 1.5) ->
 
 
 def fetch_html_browser(url: str, timeout_seconds: int = 60) -> str | None:
+    script_path = Path(__file__).parent / "fetch_page.js"
     try:
-        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-        from playwright.sync_api import sync_playwright
-    except ImportError as exc:
-        raise RuntimeError(
-            "Playwright is required for browser fetch mode. "
-            "Install it with: pip install playwright && python -m playwright install chromium"
-        ) from exc
-
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        context = browser.new_context(
-            locale="zh-TW",
-            timezone_id="Asia/Taipei",
-            user_agent=HEADERS["User-Agent"],
-            extra_http_headers={
-                "Accept-Language": HEADERS["Accept-Language"],
-            },
+        result = subprocess.run(
+            ["node", str(script_path), url],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_seconds,
         )
-        page = context.new_page()
-        response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_seconds * 1000)
-        if response is not None and response.status == 404:
-            browser.close()
+        if result.returncode == 44:
             return None
-
-        try:
-            page.wait_for_selector("text=Kobo99選書", timeout=timeout_seconds * 1000)
-        except PlaywrightTimeoutError:
-            pass
-
-        content = page.content()
-        browser.close()
+        if result.returncode != 0:
+            print(f"Node 爬蟲腳本出錯 (Exit Code {result.returncode}): {result.stderr.strip()}", file=sys.stderr)
+            raise RuntimeError(f"Node script failed with code {result.returncode}")
+        
+        content = result.stdout
         if "Just a moment" in content and "Kobo99選書" not in content:
             raise FetchBlocked(f"Browser fetch still blocked for {url}")
         return content
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"Browser fetch timed out for {url}") from exc
+    except Exception as exc:
+        raise RuntimeError(f"Browser fetch failed for {url}: {exc}") from exc
 
 
 def fetch_html(

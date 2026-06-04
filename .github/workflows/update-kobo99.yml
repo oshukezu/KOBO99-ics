@@ -44,11 +44,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install browser fallback
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Node dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install playwright
-          python -m playwright install --with-deps chromium
+          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
       - name: Build calendar files
         run: |
