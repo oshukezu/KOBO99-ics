@@ -899,11 +899,11 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
         開源、安全、每週自動同步
       </div>
       <h1 class="hero-title">
-        錯過 KOBO 每日 99 元選書？<br>
+        錯過KOBO每日99元活動？<br>
         <span class="gradient-text">讓它自動住進你的行事曆！</span>
       </h1>
       <p class="hero-subtitle">
-        無需每天手動檢查。一鍵訂閱 ICS 檔案，天天自動同步當日特價書單，支援 Google｜Apple｜Outlook 行事曆。
+        無需每天手動檢查。一鍵訂閱 ICS 檔案，自動同步當日特價書單，支援 Google｜Apple｜Outlook 行事曆。
       </p>
       <div class="cta-group">
         <button class="btn btn-primary" id="copy-btn">
@@ -919,7 +919,7 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
     <!-- Steps Section -->
     <section class="steps-section">
       <div class="section-header">
-        <h2>只需 3 秒，三步完成訂閱</h2>
+        <h2>三步完成訂閱</h2>
         <p>簡單設定，讓日曆天天為你報到</p>
       </div>
       <div class="steps-grid">
