@@ -8,7 +8,7 @@ COMMIT_MESSAGE="${1:-Update Kobo 99 latest list}"
 
 python3 scripts/kobo99.py --out public
 
-git add public/events.json public/kobo99.ics public/index.html
+git add public/events.json public/kobo99.ics index.html
 
 if git diff --cached --quiet; then
   echo "No Kobo 99 output changes to commit."

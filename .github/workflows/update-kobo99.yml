@@ -71,7 +71,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/events.json public/kobo99.ics public/index.html
+          git add public/events.json public/kobo99.ics index.html
           git diff --cached --quiet || git commit -m "Update Kobo 99 calendar"
           git push
 
@@ -79,7 +79,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: public
+          path: .
 
       - id: deployment
         uses: actions/deploy-pages@v4
