@@ -615,8 +615,12 @@
           </thead>
           <tbody>
           <tr>
-            <td class="date-cell"><time datetime="2026-06-04">2026-06-04</time></td>
-            <td class="title-cell"><a href="https://www.kobo.com/tw/zh/ebook/ni9CZXGnTTGPpHekBL5cnQ?sid=217a6b39-6f76-485f-8c22-e28d307440f9&amp;ssid=79VNhn8BenEl4cHCFyHbp&amp;utm_source=twblog&amp;utm_medium=99list&amp;utm_campaign=coin99_20260604" target="_blank">謝謝敵人造就我：從難民到億萬創業家，利用敵人讓自己更成功的12堂課</a></td>
+            <td class="date-cell"><time datetime="2026-06-05">2026-06-05</time></td>
+            <td class="title-cell"><a href="https://www.kobo.com/tw/zh/ebook/LcIpZBabKT-joZZA1-Viww?sid=db0e846f-e913-4e98-9b9b-9c1b08331cb3&amp;ssid=Rl3qZ8keoJIZgzT0QlXNl&amp;cPos=6&amp;utm_source=twblog&amp;utm_medium=99list&amp;utm_campaign=coin99_20260604" target="_blank">我的金錢之旅：30個財務自由真實故事，你也做得到</a></td>
+          </tr>
+          <tr>
+            <td class="date-cell"><time datetime="2026-06-05">2026-06-05</time></td>
+            <td class="title-cell"><a href="https://www.kobo.com/tw/zh/ebook/lP41t3f7Tz6AjUyQNg688g?sid=db0e846f-e913-4e98-9b9b-9c1b08331cb3&amp;ssid=Rl3qZ8keoJIZgzT0QlXNl&amp;cPos=8&amp;utm_source=twblog&amp;utm_medium=99list&amp;utm_campaign=coin99_20260604" target="_blank">考古有意思：秦始皇的兵与城</a></td>
           </tr>
           </tbody>
         </table>
@@ -638,11 +642,55 @@
       <p class="footer-disclaimer">
         免責宣告：本專案為個人非營利性質之開源自動化工具，所產生之行事曆僅供參考。書單資訊與特價時效以 Rakuten Kobo 官網公布為最終基準。
       </p>
-      <p>© 2026 J.J. Wang. All rights reserved. | 最後產生時間：2026-06-04 16:34:22 CST</p>
+      <p>© 2026 J.J. Wang. All rights reserved. | 最後產生時間：2026-06-05 17:29:57 CST</p>
     </div>
   </footer>
 
   <script>
+    // 動態更新當日特價書單（與實際日期同步）
+    async function updateTodayBooks() {
+      try {
+        const todayStr = new Intl.DateTimeFormat('zh-TW', {
+          timeZone: 'Asia/Taipei',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).format(new Date()).replace(/\//g, '-');
+        
+        const response = await fetch('public/events.json');
+        if (!response.ok) return;
+        const events = await response.json();
+        
+        const todayEvents = events.filter(e => e.date === todayStr);
+        const tbody = document.querySelector('.table-section tbody');
+        if (!tbody) return;
+        
+        if (todayEvents.length > 0) {
+          tbody.innerHTML = todayEvents.map(event => `
+            <tr>
+              <td class="date-cell"><time datetime="${escapeHtml(event.date)}">${escapeHtml(event.date)}</time></td>
+              <td class="title-cell"><a href="${escapeHtml(event.book_url)}" target="_blank">${escapeHtml(event.title)}</a></td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">今日暫無特價選書。</td></tr>';
+        }
+      } catch (err) {
+        console.error('無法動態更新今日書單', err);
+      }
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    window.addEventListener('DOMContentLoaded', updateTodayBooks);
+
     const copyBtn = document.getElementById('copy-btn');
     const toast = document.getElementById('toast');
 

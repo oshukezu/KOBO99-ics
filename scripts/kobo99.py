@@ -1013,6 +1013,50 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
   </footer>
 
   <script>
+    // 動態更新當日特價書單（與實際日期同步）
+    async function updateTodayBooks() {{
+      try {{
+        const todayStr = new Intl.DateTimeFormat('zh-TW', {{
+          timeZone: 'Asia/Taipei',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }}).format(new Date()).replace(/\//g, '-');
+        
+        const response = await fetch('public/events.json');
+        if (!response.ok) return;
+        const events = await response.json();
+        
+        const todayEvents = events.filter(e => e.date === todayStr);
+        const tbody = document.querySelector('.table-section tbody');
+        if (!tbody) return;
+        
+        if (todayEvents.length > 0) {{
+          tbody.innerHTML = todayEvents.map(event => `
+            <tr>
+              <td class="date-cell"><time datetime="${{escapeHtml(event.date)}}">${{escapeHtml(event.date)}}</time></td>
+              <td class="title-cell"><a href="${{escapeHtml(event.book_url)}}" target="_blank">${{escapeHtml(event.title)}}</a></td>
+            </tr>
+          `).join('');
+        }} else {{
+          tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">今日暫無特價選書。</td></tr>';
+        }}
+      }} catch (err) {{
+        console.error('無法動態更新今日書單', err);
+      }}
+    }}
+
+    function escapeHtml(str) {{
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }}
+
+    window.addEventListener('DOMContentLoaded', updateTodayBooks);
+
     const copyBtn = document.getElementById('copy-btn');
     const toast = document.getElementById('toast');
 
