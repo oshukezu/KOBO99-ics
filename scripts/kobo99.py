@@ -494,7 +494,7 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
 
     /* Hero Section */
     .hero {{
-      padding: 96px 0 64px;
+      padding: 32px 0 64px;
       text-align: center;
       position: relative;
     }}
@@ -714,7 +714,7 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
 
     /* Table Section */
     .table-section {{
-      padding: 64px 0 96px;
+      padding: 64px 0 32px;
     }}
 
     .table-wrapper {{
@@ -847,7 +847,10 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
     /* Responsive */
     @media (max-width: 768px) {{
       .hero {{
-        padding: 64px 0 40px;
+        padding: 24px 0 40px;
+      }}
+      .table-section {{
+        padding: 32px 0 16px;
       }}
       .steps-grid, .features-grid {{
         grid-template-columns: 1fr;
@@ -892,6 +895,27 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
 
   <main class="container">
     
+    <!-- Table Section -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2>今日特價選書預覽</h2>
+        <p>今日的折扣書籍，點擊連結詳閱書目介紹</p>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>特價日期</th>
+              <th>今日特價書名 (附 Kobo 連結)</th>
+            </tr>
+          </thead>
+          <tbody>
+{rows or '            <tr><td colspan="2" style="text-align:center; color:var(--text-muted);">今日暫無特價選書。</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Hero Section -->
     <section class="hero">
       <div class="badge">
@@ -972,26 +996,7 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
       </div>
     </section>
 
-    <!-- Table Section -->
-    <section class="table-section">
-      <div class="section-header">
-        <h2>今日特價選書預覽</h2>
-        <p>今日的折扣書籍，點擊連結詳閱書目介紹</p>
-      </div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>特價日期</th>
-              <th>今日特價書名 (附 Kobo 連結)</th>
-            </tr>
-          </thead>
-          <tbody>
-{rows or '            <tr><td colspan="2" style="text-align:center; color:var(--text-muted);">今日暫無特價選書。</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </section>
+
 
   </main>
 
