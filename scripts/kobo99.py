@@ -976,7 +976,7 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
     <section class="table-section">
       <div class="section-header">
         <h2>今日特價選書預覽</h2>
-        <p>對照今日日期顯示的折扣書籍，即時同步至您的行事曆</p>
+        <p>今日的折扣書籍，點擊連結詳閱書目介紹</p>
       </div>
       <div class="table-wrapper">
         <table>
