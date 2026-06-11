@@ -114,31 +114,40 @@ def fetch_html_direct(url: str, retries: int = 2, delay_seconds: float = 1.5) ->
     raise RuntimeError(f"Fetch failed for {url}: {last_error}")
 
 
-def fetch_html_browser(url: str, timeout_seconds: int = 60) -> str | None:
+def fetch_html_browser(url: str, timeout_seconds: int = 60, max_retries: int = 2) -> str | None:
     script_path = Path(__file__).parent / "fetch_page.js"
-    try:
-        result = subprocess.run(
-            ["node", str(script_path), url],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout_seconds,
-        )
-        if result.returncode == 44:
-            return None
-        if result.returncode != 0:
-            print(f"Node 爬蟲腳本出錯 (Exit Code {result.returncode}): {result.stderr.strip()}", file=sys.stderr)
-            raise RuntimeError(f"Node script failed with code {result.returncode}")
-        
-        content = result.stdout
-        if "Just a moment" in content and "Kobo99選書" not in content:
-            raise FetchBlocked(f"Browser fetch still blocked for {url}")
-        return content
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"Browser fetch timed out for {url}") from exc
-    except Exception as exc:
-        raise RuntimeError(f"Browser fetch failed for {url}: {exc}") from exc
+    last_error: Exception | None = None
+    
+    for attempt in range(max_retries + 1):
+        if attempt > 0:
+            print(f"Browser fetch retry {attempt}/{max_retries} for {url}...")
+            time.sleep(3.0 * attempt)  # 漸進增加重試等待時間
+            
+        try:
+            result = subprocess.run(
+                ["node", str(script_path), url],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout_seconds,
+            )
+            if result.returncode == 44:
+                return None
+            if result.returncode != 0:
+                print(f"Node 爬蟲腳本出錯 (Exit Code {result.returncode}): {result.stderr.strip()}", file=sys.stderr)
+                raise RuntimeError(f"Node script failed with code {result.returncode}")
+            
+            content = result.stdout
+            if "Just a moment" in content and "Kobo99選書" not in content:
+                raise FetchBlocked(f"Browser fetch still blocked for {url}")
+            return content
+        except subprocess.TimeoutExpired as exc:
+            last_error = RuntimeError(f"Browser fetch timed out for {url}")
+        except Exception as exc:
+            last_error = exc
+            
+    raise RuntimeError(f"Browser fetch failed for {url} after {max_retries} retries: {last_error}")
 
 
 def fetch_html(
@@ -238,18 +247,41 @@ def week_targets(now: date, previous_weeks: int, next_weeks: int) -> list[tuple[
     return sorted(set(targets))
 
 
+def should_skip_scrape(year: int, week: int, existing_urls: set[str], today: date) -> bool:
+    # 智慧快取過濾：若該週已過完且已經有爬過紀錄，就跳過
+    try:
+        sunday = date.fromisocalendar(year, min(week, 53), 7)
+    except ValueError:
+        sunday = date(year, 1, 1) + timedelta(weeks=week - 1) + timedelta(days=6)
+    
+    url = BASE_URL.format(year=year, week=week)
+    if sunday < today and url in existing_urls:
+        return True
+    return False
+
+
 def scrape_targets(
     targets: Iterable[tuple[int, int]],
     delay_seconds: float,
     fetch_mode: str,
     browser_timeout_seconds: int,
     strict: bool,
+    existing_urls: set[str] | None = None,
 ) -> list[SaleEvent]:
     found: list[SaleEvent] = []
+    today = datetime.now(TAIPEI).date()
+    urls_in_cache = existing_urls or set()
+
     for index, (year, week) in enumerate(targets):
+        url = BASE_URL.format(year=year, week=week)
+        
+        # 智慧快取跳過已完成的歷史週
+        if should_skip_scrape(year, week, urls_in_cache, today):
+            print(f"Smart Cache: Skipping scrape for {url} as it is in the past and already scraped.")
+            continue
+
         if index:
             time.sleep(delay_seconds)
-        url = BASE_URL.format(year=year, week=week)
         print(f"Fetching {url}")
         try:
             html_text = fetch_html(
@@ -1165,6 +1197,7 @@ def main() -> None:
     events_json = output_dir / "events.json"
 
     existing = load_existing(events_json) if args.keep_existing else []
+    existing_urls = {event.source_url for event in existing}
     scraped = []
     if not args.render_only:
         scraped = scrape_targets(
@@ -1173,6 +1206,7 @@ def main() -> None:
             fetch_mode=args.fetch_mode,
             browser_timeout_seconds=args.browser_timeout_seconds,
             strict=args.strict,
+            existing_urls=existing_urls,
         )
     events = merge_events([*existing, *scraped])
 

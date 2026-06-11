@@ -28,6 +28,8 @@ if (!url) {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--window-size=1280,1024',
       ]
     });
 
