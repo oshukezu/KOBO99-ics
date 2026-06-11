@@ -19,8 +19,8 @@ on:
         required: false
         type: string
   schedule:
-    # GitHub Actions uses UTC. 21:00 UTC everyday is 05:00 in Asia/Taipei.
-    - cron: "0 21 * * *"
+    # GitHub Actions uses UTC. 00:00 UTC everyday is 08:00 in Asia/Taipei.
+    - cron: "0 0 * * *"
 
 permissions:
   contents: write

@@ -35,13 +35,14 @@ if (!url) {
     
     // 設定常見的視窗大小與語系
     await page.setViewport({ width: 1280, height: 1024 });
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8'
     });
 
-    // 載入網頁，等待網路閒置 (networkidle2)
+    // 載入網頁，先等待 DOM 載入，以利偵測 Cloudflare 挑戰
     const response = await page.goto(url, {
-      waitUntil: 'networkidle2',
+      waitUntil: 'domcontentloaded',
       timeout: 60000
     });
 
@@ -61,11 +62,37 @@ if (!url) {
       process.exit(1);
     }
 
-    // 稍微等待額外的 2 秒以確保動態內容渲染完成
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 檢查是否遇到 Cloudflare 挑戰頁面
+    let title = await page.title();
+    let content = await page.content();
+    const isChallenge = title.includes("Just a moment") || content.includes("challenges.cloudflare.com") || content.includes("cf-challenge");
+
+    if (isChallenge) {
+      console.error("偵測到 Cloudflare 挑戰頁面，開始等待挑戰自動通過...");
+      const maxWait = 15; // 最多等待 15 秒
+      let passed = false;
+      for (let i = 0; i < maxWait; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        title = await page.title();
+        content = await page.content();
+        if (!title.includes("Just a moment") && !content.includes("cf-challenge") && (content.includes("Kobo") || content.includes("kobo"))) {
+          passed = true;
+          console.error(`Cloudflare 挑戰在 ${i + 1} 秒後通過！`);
+          // 挑戰通過後再多等待 2 秒以確保內容完整渲染
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          break;
+        }
+      }
+      if (!passed) {
+        console.error("警告: 等待 Cloudflare 挑戰超時，將嘗試直接回傳當前內容。");
+      }
+    } else {
+      // 沒遇到挑戰，稍微等待額外的 2 秒以確保動態內容渲染完成
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      content = await page.content();
+    }
 
     // 輸出網頁 HTML 內容至 stdout
-    const content = await page.content();
     process.stdout.write(content, () => {
       process.exit(0);
     });
