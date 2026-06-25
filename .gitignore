@@ -1,7 +1,7 @@
 .DS_Store
 .DS_Store?
+.agents
 node_modules/
 package-lock.json
 package.json
-Agent.md
-Website-Agent.md
+CHANGELOG.md

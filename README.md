@@ -13,6 +13,33 @@
 
 <img width="809" height="371" alt="image" src="https://github.com/user-attachments/assets/ef6de6e8-a740-497a-9e66-0cc912edf561" />
 
+## 本地開發與執行
+
+本專案使用 Python 與 Node.js (Puppeteer) 進行開發，Python 部分僅使用標準庫，無外部依賴。為維護環境乾淨，推薦使用 `uv` 管理虛擬環境。
+
+### 1. 準備環境
+請確保已安裝 `uv` 以及 `Node.js`。
+
+```bash
+# 建立並啟用虛擬環境 (.venv)
+uv venv
+source .venv/bin/activate  # macOS / Linux
+
+# 安裝 Node.js 依賴 (爬蟲所需的 Puppeteer)
+npm install
+```
+
+### 2. 執行指令
+```bash
+# 僅重新渲染 HTML 與 ICS 檔案（不爬取官網）
+python scripts/kobo99.py --render-only
+
+# 爬取當週與前後週的最新特價資料並更新
+python scripts/kobo99.py --out public
+
+# 執行回填歷史資料（例如回填 2025 年所有資料）
+python scripts/kobo99.py --out public --history-start-year 2025
+```
 
 ## 免責與技術限制宣告 (Disclaimer & Limitations)
 本專案為個人非營利性質之自動化開源工具，所產生之行事曆與書單資料僅供個人閱讀參考。使用本工具前請知悉以下限制：
