@@ -2,18 +2,17 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
-from pathlib import Path
-
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # 將 scripts 目錄加入 sys.path 以利直接執行
 sys.path.insert(0, str(Path(__file__).parent))
 
+from homepage import apply_homepage_fallback
 from models import load_existing, merge_events
 from renderer import write_ics, write_index, write_json
-from scraper import TAIPEI, scrape_targets, week_targets
+from scraper import TAIPEI, apply_pending_placeholder, scrape_targets, should_scrape, week_targets
 
 
 def build_targets(args: argparse.Namespace) -> list[tuple[int, int]]:
@@ -73,17 +72,33 @@ def main() -> None:
         help="Discard existing events.json and rebuild only from fetched targets.",
     )
     parser.add_argument("--strict", action="store_true", help="Fail the run when a target URL cannot be fetched.")
+    parser.add_argument(
+        "--should-scrape",
+        action="store_true",
+        help="Print true when the scheduled window still needs this week's article, then exit.",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.out)
-    output_dir.mkdir(parents=True, exist_ok=True)
     events_json = output_dir / "events.json"
+    if args.should_scrape:
+        existing = load_existing(events_json)
+        print("true" if should_scrape(existing, datetime.now(TAIPEI)) else "false")
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     existing = load_existing(events_json) if args.keep_existing else []
-    existing_urls = {event.source_url for event in existing}
+    existing_urls = {
+        event.source_url
+        for event in existing
+        if not event.placeholder and not event.provisional
+    }
     scraped = []
+    not_found: set[str] = set()
+    failed: set[str] = set()
     if not args.render_only:
-        scraped = scrape_targets(
+        result = scrape_targets(
             build_targets(args),
             delay_seconds=args.delay_seconds,
             fetch_mode=args.fetch_mode,
@@ -91,7 +106,28 @@ def main() -> None:
             strict=args.strict,
             existing_urls=existing_urls,
         )
+        scraped = result.events
+        not_found = result.not_found
+        failed = result.failed
     events = merge_events([*existing, *scraped])
+    if not args.render_only:
+        now = datetime.now(TAIPEI)
+        events, allow_placeholder = apply_homepage_fallback(
+            events,
+            not_found,
+            failed,
+            now,
+            fetch_mode=args.fetch_mode,
+            delay_seconds=args.delay_seconds,
+            browser_timeout_seconds=args.browser_timeout_seconds,
+        )
+        events = apply_pending_placeholder(
+            events,
+            not_found,
+            failed,
+            now,
+            allow_placeholder=allow_placeholder,
+        )
 
     write_json(events, events_json)
     write_ics(events, output_dir / "kobo99.ics")

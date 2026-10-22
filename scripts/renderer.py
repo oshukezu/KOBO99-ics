@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import html
 import json
-from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -38,6 +37,36 @@ def fold_ics_line(line: str) -> list[str]:
     return lines
 
 
+def event_description(event: SaleEvent) -> str:
+    if event.placeholder:
+        return "\n".join(
+            [
+                "本週 99 元書單尚未公布。",
+                f"預期文章：{event.source_url}",
+            ]
+        )
+    if event.provisional:
+        return "\n".join(
+            [
+                f"書名：{event.title}",
+                "來源：Kobo 首頁今日 99",
+                f"頁面：{event.source_url}",
+            ]
+        )
+    return "\n".join(
+        [
+            f"書名：{event.title}",
+            f"來源文章：{event.source_url}",
+        ]
+    )
+
+
+def event_link(event: SaleEvent) -> str:
+    if event.placeholder:
+        return event.source_url
+    return event.book_url
+
+
 def write_ics(events: list[SaleEvent], path: Path) -> None:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     raw_lines = [
@@ -53,12 +82,6 @@ def write_ics(events: list[SaleEvent], path: Path) -> None:
     for event in events:
         start = date.fromisoformat(event.date)
         end = start + timedelta(days=1)
-        description = "\n".join(
-            [
-                f"書名：{event.title}",
-                f"來源文章：{event.source_url}",
-            ]
-        )
         raw_lines.extend(
             [
                 "BEGIN:VEVENT",
@@ -67,8 +90,8 @@ def write_ics(events: list[SaleEvent], path: Path) -> None:
                 f"DTSTART;VALUE=DATE:{start.strftime('%Y%m%d')}",
                 f"DTEND;VALUE=DATE:{end.strftime('%Y%m%d')}",
                 f"SUMMARY:{escape_ics(event.title)}",
-                f"DESCRIPTION:{escape_ics(description)}",
-                f"URL:{escape_ics(event.book_url)}",
+                f"DESCRIPTION:{escape_ics(event_description(event))}",
+                f"URL:{escape_ics(event_link(event))}",
                 "END:VEVENT",
             ]
         )
@@ -78,9 +101,23 @@ def write_ics(events: list[SaleEvent], path: Path) -> None:
     path.write_text("\r\n".join(folded) + "\r\n", encoding="utf-8")
 
 
+def serialize_event(event: SaleEvent) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "date": event.date,
+        "title": event.title,
+        "book_url": event.book_url,
+        "source_url": event.source_url,
+    }
+    if event.placeholder:
+        payload["placeholder"] = True
+    if event.provisional:
+        payload["provisional"] = True
+    return payload
+
+
 def write_json(events: list[SaleEvent], path: Path) -> None:
     path.write_text(
-        json.dumps([asdict(event) for event in events], ensure_ascii=False, indent=2) + "\n",
+        json.dumps([serialize_event(event) for event in events], ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -91,7 +128,7 @@ def write_index(events: list[SaleEvent], path: Path) -> None:
     rows = "\n".join(
         f"""          <tr>
             <td class="date-cell"><time datetime="{html.escape(event.date)}">{html.escape(event.date)}</time></td>
-            <td class="title-cell"><a href="{html.escape(event.book_url)}" target="_blank">{html.escape(event.title)}</a></td>
+            <td class="title-cell"><a href="{html.escape(event_link(event))}" target="_blank">{html.escape(event.title)}</a></td>
           </tr>"""
         for event in today_events
     )

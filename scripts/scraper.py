@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -11,7 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-from models import SaleEvent, parse_events
+from models import PLACEHOLDER_TITLE, SaleEvent, merge_events, parse_events, sale_week_dates
 
 BASE_URL = "https://www.kobo.com/zh/blog/weekly-dd99-{year}-w{week}"
 TAIPEI = ZoneInfo("Asia/Taipei")
@@ -28,6 +29,17 @@ HEADERS = {
 
 class FetchBlocked(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class ScrapeResult:
+    events: list[SaleEvent]
+    not_found: set[str]
+    failed: set[str]
+
+
+def week_url(year: int, week: int) -> str:
+    return BASE_URL.format(year=year, week=week)
 
 
 def parse_retry_after(value: str | None) -> float | None:
@@ -123,6 +135,74 @@ def fetch_html(
         raise
 
 
+def pending_sale_week(now: datetime) -> tuple[int, int] | None:
+    """ISO week whose article should already be out, inside Thu 08:00–next Wed 23:00."""
+    local = now.astimezone(TAIPEI)
+    weekday = local.weekday()
+    if weekday == 3 and local.hour < 8:
+        return None
+    if weekday >= 3:
+        anchor = local.date()
+    else:
+        monday = local.date() - timedelta(days=weekday)
+        anchor = monday - timedelta(days=4)
+    iso = anchor.isocalendar()
+    return (iso.year, iso.week)
+
+
+def should_scrape(events: list[SaleEvent], now: datetime) -> bool:
+    pending = pending_sale_week(now)
+    if pending is None:
+        return False
+    url = week_url(*pending)
+    return not any(
+        event.source_url == url and not event.placeholder and not event.provisional
+        for event in events
+    )
+
+
+def placeholder_event(year: int, week: int) -> SaleEvent:
+    url = week_url(year, week)
+    thursday = date.fromisocalendar(year, week, 4)
+    return SaleEvent(
+        date=thursday.isoformat(),
+        title=PLACEHOLDER_TITLE,
+        book_url=url,
+        source_url=url,
+        placeholder=True,
+    )
+
+
+def apply_pending_placeholder(
+    events: list[SaleEvent],
+    not_found: set[str],
+    failed: set[str],
+    now: datetime,
+    allow_placeholder: bool = True,
+) -> list[SaleEvent]:
+    pending = pending_sale_week(now)
+    if pending is None:
+        return events
+    url = week_url(*pending)
+
+    def without_placeholder(items: list[SaleEvent]) -> list[SaleEvent]:
+        return [event for event in items if not (event.placeholder and event.source_url == url)]
+
+    has_real = any(
+        event.source_url == url and not event.placeholder and not event.provisional
+        for event in events
+    )
+    if has_real:
+        return without_placeholder(events)
+    if not allow_placeholder or url in failed or url not in not_found:
+        return events
+    week_dates = sale_week_dates(*pending)
+    has_provisional = any(event.provisional and event.date in week_dates for event in events)
+    if has_provisional:
+        return without_placeholder(events)
+    return merge_events([*without_placeholder(events), placeholder_event(*pending)])
+
+
 def week_targets(now: date, previous_weeks: int, next_weeks: int) -> list[tuple[int, int]]:
     monday = now - timedelta(days=now.weekday())
     targets = []
@@ -139,7 +219,7 @@ def should_skip_scrape(year: int, week: int, existing_urls: set[str], today: dat
     except ValueError:
         sunday = date(year, 1, 1) + timedelta(weeks=week - 1) + timedelta(days=6)
     
-    url = BASE_URL.format(year=year, week=week)
+    url = week_url(year, week)
     if sunday < today and url in existing_urls:
         return True
     return False
@@ -152,13 +232,15 @@ def scrape_targets(
     browser_timeout_seconds: int,
     strict: bool,
     existing_urls: set[str] | None = None,
-) -> list[SaleEvent]:
+) -> ScrapeResult:
     found: list[SaleEvent] = []
+    not_found: set[str] = set()
+    failed: set[str] = set()
     today = datetime.now(TAIPEI).date()
     urls_in_cache = existing_urls or set()
 
     for index, (year, week) in enumerate(targets):
-        url = BASE_URL.format(year=year, week=week)
+        url = week_url(year, week)
         
         if should_skip_scrape(year, week, urls_in_cache, today):
             print(f"Smart Cache: Skipping scrape for {url} as it is in the past and already scraped.")
@@ -178,11 +260,13 @@ def scrape_targets(
             if strict:
                 raise
             print(f"Fetch failed, skipping {url}: {exc}")
+            failed.add(url)
             continue
         if html_text is None:
             print(f"Not found: {url}")
+            not_found.add(url)
             continue
         events = parse_events(url, year, week, html_text)
         print(f"Found {len(events)} event(s) in {url}")
         found.extend(events)
-    return found
+    return ScrapeResult(events=found, not_found=not_found, failed=failed)

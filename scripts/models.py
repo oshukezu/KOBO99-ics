@@ -4,15 +4,18 @@ import hashlib
 import html
 import json
 import re
-from dataclasses import asdict, dataclass
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass
+from datetime import date, timedelta
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import Iterable
 from urllib.parse import urljoin
 
 HEADING_RE = re.compile(
     r"(?P<month>\d{1,2})/(?P<day>\d{1,2})\s*週[一二三四五六日天]\s*Kobo99選書\s*[：:]\s*(?P<title>.+)"
 )
+PLACEHOLDER_TITLE = "目前尚未公布資料，請耐心等候"
+BLOG_WEEK_RE = re.compile(r"weekly-dd99-(?P<year>\d{4})-w(?P<week>\d+)")
 
 
 @dataclass(frozen=True)
@@ -21,6 +24,8 @@ class SaleEvent:
     title: str
     book_url: str
     source_url: str
+    placeholder: bool = False
+    provisional: bool = False
 
     @property
     def uid(self) -> str:
@@ -118,6 +123,21 @@ def parse_events(page_url: str, article_year: int, article_week: int, html_text:
     return events
 
 
+def sale_week_dates(year: int, week: int) -> set[str]:
+    thursday = date.fromisocalendar(year, week, 4)
+    return {(thursday + timedelta(days=offset)).isoformat() for offset in range(7)}
+
+
+def blog_sale_dates(source_url: str) -> set[str]:
+    match = BLOG_WEEK_RE.search(source_url)
+    if not match:
+        return set()
+    try:
+        return sale_week_dates(int(match.group("year")), int(match.group("week")))
+    except ValueError:
+        return set()
+
+
 def load_existing(path: Path) -> list[SaleEvent]:
     if not path.exists():
         return []
@@ -129,4 +149,19 @@ def merge_events(events: Iterable[SaleEvent]) -> list[SaleEvent]:
     by_key: dict[tuple[str, str], SaleEvent] = {}
     for event in events:
         by_key[(event.date, event.title)] = event
-    return sorted(by_key.values(), key=lambda item: (item.date, item.title))
+    merged = list(by_key.values())
+    real_sources = {
+        event.source_url
+        for event in merged
+        if not event.placeholder and not event.provisional
+    }
+    covered_dates: set[str] = set()
+    for source_url in real_sources:
+        covered_dates.update(blog_sale_dates(source_url))
+    kept = [
+        event
+        for event in merged
+        if not (event.placeholder and event.source_url in real_sources)
+        and not (event.provisional and event.date in covered_dates)
+    ]
+    return sorted(kept, key=lambda item: (item.date, item.title))

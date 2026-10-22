@@ -19,8 +19,12 @@ on:
         required: false
         type: string
   schedule:
-    # GitHub Actions uses UTC. 23:00 UTC Wednesday is 07:00 Thursday in Asia/Taipei.
-    - cron: "0 23 * * 3"
+    # Taipei is UTC+8. Poll Thursday 08:00 through Wednesday 23:00.
+    # 08:00–23:00 Taipei every day is 00:00–15:00 UTC.
+    - cron: "0 0-15 * * *"
+    # 00:00–07:00 Taipei on Friday–Wednesday is 16:00–23:00 UTC on Thursday–Tuesday.
+    # Wednesday 16:00–23:00 UTC is Thursday 00:00–07:00 Taipei, which stays outside the window.
+    - cron: "0 16-23 * * 0-2,4-6"
 
 permissions:
   contents: write
@@ -39,21 +43,34 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      - name: Check whether this hour should scrape
+        id: gate
+        if: github.event_name == 'schedule'
+        run: |
+          result="$(python scripts/kobo99.py --out public --should-scrape)"
+          echo "scrape=${result}" >> "$GITHUB_OUTPUT"
+
       - name: Setup Node.js
+        if: github.event_name != 'schedule' || steps.gate.outputs.scrape == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "24"
 
       - name: Install Node dependencies
+        if: github.event_name != 'schedule' || steps.gate.outputs.scrape == 'true'
         run: |
           npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
       - name: Build calendar files
+        if: github.event_name != 'schedule' || steps.gate.outputs.scrape == 'true'
         run: |
           if [ -n "${{ inputs.history_start_year }}" ]; then
             if [ -n "${{ inputs.history_end_year }}" ]; then
@@ -68,18 +85,30 @@ jobs:
           fi
 
       - name: Commit generated files
+        if: github.event_name != 'schedule' || steps.gate.outputs.scrape == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          if git diff --quiet -- public/events.json public/kobo99.ics index.html; then
+            git checkout -B main origin/main
+          else
+            git stash push -m "kobo99-generated" -- public/events.json public/kobo99.ics index.html
+            git checkout -B main origin/main
+            git stash pop
+          fi
           git add public/events.json public/kobo99.ics index.html
           git diff --cached --quiet || git commit -m "Update Kobo 99 calendar"
-          git push
+          git push origin main || (git pull --rebase --autostash origin main && git push origin main)
 
       - uses: actions/configure-pages@v5
+        if: github.event_name != 'schedule' || steps.gate.outputs.scrape == 'true'
 
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'schedule' || steps.gate.outputs.scrape == 'true'
         with:
           path: .
 
       - id: deployment
+        if: github.event_name != 'schedule' || steps.gate.outputs.scrape == 'true'
         uses: actions/deploy-pages@v4
