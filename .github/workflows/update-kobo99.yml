@@ -19,12 +19,15 @@ on:
         required: false
         type: string
   schedule:
-    # Taipei is UTC+8. Poll Thursday 08:00 through Wednesday 23:00.
-    # 08:00–23:00 Taipei every day is 00:00–15:00 UTC.
-    - cron: "0 0-15 * * *"
-    # 00:00–07:00 Taipei on Friday–Wednesday is 16:00–23:00 UTC on Thursday–Tuesday.
+    # Taipei is UTC+8. Two attempts each hour, Thursday 08:17 through Wednesday 23:47.
+    # Minutes 17 and 47 avoid the top of the hour, when GitHub most often delays or drops schedules.
+    # 08:17–23:47 Taipei every day is 00:17–15:47 UTC.
+    - cron: "17 0-15 * * *"
+    - cron: "47 0-15 * * *"
+    # 00:17–07:47 Taipei on Friday–Wednesday is 16:17–23:47 UTC on Thursday–Tuesday.
     # Wednesday 16:00–23:00 UTC is Thursday 00:00–07:00 Taipei, which stays outside the window.
-    - cron: "0 16-23 * * 0-2,4-6"
+    - cron: "17 16-23 * * 0-2,4-6"
+    - cron: "47 16-23 * * 0-2,4-6"
 
 permissions:
   contents: write
